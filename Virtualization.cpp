@@ -1,10 +1,15 @@
-﻿#include "globals.h"
+#include "globals.h"
 #include "HideMemory.h"
 
 DWORD64 hidemem;
 
+typedef struct _ImprotantData
+{
+	char dat[0x999];
+}ImprotantData;
+
 //如果只想读写的话可以删除这个锁,并打开在VEH处理函数内的锁, 要执行的话可能会在执行时触发双重异常,所以在这里加锁
-std::mutex m;
+//std::mutex m;
 
 typedef NTSTATUS (NTAPI* _NtClose)(IN HANDLE ObjectHandle);
 typedef NTSTATUS (NTAPI* _NtReadVirtualMemory)(HANDLE ProcessHandle,PVOID BaseAddress,PVOID Buffer,ULONG NumberOfBytesToRead,PULONG NumberOfBytesReaded);
@@ -25,38 +30,38 @@ BOOL CheckSEH()
 	return FALSE;
 }
 
-BOOL ExecuteHiddenMemory()
-{
-	//todo test long jump
-
-
-	auto ntdll = GetModuleHandle(L"ntdll.dll");
-	//auto NtClose = GetProcAddress(ntdll, "NtClose");
-	auto NtReadVirtualMemory = GetProcAddress(ntdll, "NtReadVirtualMemory");
-	
-	auto NtReadVirtualMemory_index = *(LONG*)((DWORD64)NtReadVirtualMemory + 4);
-
-	char NtReadShell[0x50] = { 0 };
-	*(UINT*)(NtReadShell) = 0xB8D18B4C;			//mov r10,rcx	mov eax,
-	*(UINT*)(NtReadShell + 4) = NtReadVirtualMemory_index;			 // index
-	*(USHORT*)(NtReadShell + 8) = (USHORT)0x050F;			//syscall
-	*(UCHAR*)(NtReadShell + 10) = (UCHAR)0xC3;				//ret
-	memcpy((PVOID)(hidemem + 0x10), NtReadShell, 0x50);
-
-	auto hProcess = OpenProcess(PROCESS_ALL_ACCESS, 0, GetCurrentProcessId());
-	char Buf[0x27] = { 0 };
-	
-	if (((_NtReadVirtualMemory)(hidemem + 0x10))(hProcess, (PVOID)((DWORD64)ntdll + 0x4E), Buf, 0x26, 0) == STATUS_SUCCESS)
-	{
-		if (strcmp(Buf, "This program cannot be run in DOS mode") == 0)//Should Be this.
-		{
-			CloseHandle(hProcess);
-			return TRUE;
-		}
-	}	
-	CloseHandle(hProcess);
-	return FALSE;
-}
+//BOOL ExecuteHiddenMemory()
+//{
+//	//todo test long jump
+//
+//
+//	auto ntdll = GetModuleHandle(L"ntdll.dll");
+//	//auto NtClose = GetProcAddress(ntdll, "NtClose");
+//	auto NtReadVirtualMemory = GetProcAddress(ntdll, "NtReadVirtualMemory");
+//	
+//	auto NtReadVirtualMemory_index = *(LONG*)((DWORD64)NtReadVirtualMemory + 4);
+//
+//	char NtReadShell[0x50] = { 0 };
+//	*(UINT*)(NtReadShell) = 0xB8D18B4C;			//mov r10,rcx	mov eax,
+//	*(UINT*)(NtReadShell + 4) = NtReadVirtualMemory_index;			 // index
+//	*(USHORT*)(NtReadShell + 8) = (USHORT)0x050F;			//syscall
+//	*(UCHAR*)(NtReadShell + 10) = (UCHAR)0xC3;				//ret
+//	memcpy((PVOID)(hidemem + 0x10), NtReadShell, 0x50);
+//
+//	auto hProcess = OpenProcess(PROCESS_ALL_ACCESS, 0, GetCurrentProcessId());
+//	char Buf[0x27] = { 0 };
+//	
+//	if (((_NtReadVirtualMemory)(hidemem + 0x10))(hProcess, (PVOID)((DWORD64)ntdll + 0x4E), Buf, 0x26, 0) == STATUS_SUCCESS)
+//	{
+//		if (strcmp(Buf, "This program cannot be run in DOS mode") == 0)//Should Be this.
+//		{
+//			CloseHandle(hProcess);
+//			return TRUE;
+//		}
+//	}	
+//	CloseHandle(hProcess);
+//	return FALSE;
+//}
 
 BOOL IsMemoryHidden()
 {
@@ -74,9 +79,9 @@ void ReadThreadProc2()
 	while (1)
 	{
 		ULONGLONG tick = GetTickCount64();
-		m.lock();
+		//m.lock();
 		printf("Thread2 ReadTime %llu ms Data:%llx\n", GetTickCount64() - tick, *(DWORD64*)hidemem);		
-		m.unlock();
+		//m.unlock();
 		Sleep(100);		
 	}
 }
@@ -86,9 +91,9 @@ void ReadThreadProc3()
 	while (1)
 	{
 		ULONGLONG tick = GetTickCount64();
-		m.lock();
+		//m.lock();
 		printf("Thread3 ReadTime %llu ms Data:%llx\n", GetTickCount64() - tick, *(DWORD64*)hidemem);
-		m.unlock();
+		//m.unlock();
 		Sleep(100);
 	}
 }
@@ -129,10 +134,10 @@ int main()
 		ULONGLONG tick = GetTickCount64();
 
 		//R/W ==========================================================================================
-		m.lock();
+		//m.lock();
 		*(DWORD64*)hidemem += 1;
 		printf("ReadWriteTime %llu ms Data:%llx\n", GetTickCount64() - tick, *(DWORD64*)hidemem);
-		m.unlock();
+		//m.unlock();
 		//R/W ==========================================================================================
 
 		//Ptr
@@ -145,38 +150,38 @@ int main()
 
 
 		//Execute =======================================================================================
-		tick = GetTickCount64();
-		m.lock();
-		if (ExecuteHiddenMemory())
-			printf("ExecuteTime   %llu ms \n", GetTickCount64() - tick);
-		else
-			printf("Execute Failed\n");
-		m.unlock();
+		//tick = GetTickCount64(); 请查看当前文件头部的锁
+		//m.lock();
+		//if (ExecuteHiddenMemory())
+		//	printf("ExecuteTime   %llu ms \n", GetTickCount64() - tick);
+		//else
+		//	printf("Execute Failed\n");
+		//m.unlock();
 		//Execute =======================================================================================
 
 
 		//SEH ===========================================================================================
 		tick = GetTickCount64();
-		m.lock();
+		//m.lock();
 		if(CheckSEH())
 			printf("Support SEH   %llu ms\n", GetTickCount64() - tick);
-		m.unlock();
+		//m.unlock();
 		//SEH ===========================================================================================
 
 
 		//For Safety ====================================================================================
-		m.lock();
+		//m.lock();
 		if (!IsMemoryHidden())
 		{
 			ReadThread1.detach();
 			ReadThread2.detach();
 
-			m.unlock();
+			//m.unlock();
 			std::cout << "Error: DONT debug the critical R/W/X Code" << std::endl;
 			system("pause");
 			exit(0);
 		}
-		m.unlock();
+		//m.unlock();
 		//For Safety ====================================================================================
 
 		Sleep(200);
@@ -184,9 +189,9 @@ int main()
 	}
 
 END:
-	m.lock();
+	//m.lock();
 	FreeHiddenMemory(hidemem);
-	m.unlock();
+	//m.unlock();
 }
 
 
