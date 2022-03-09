@@ -3,11 +3,6 @@
 
 DWORD64 hidemem;
 
-typedef struct _ImprotantData
-{
-	char dat[0x999];
-}ImprotantData;
-
 //如果只想读写的话可以删除这个锁,并打开在VEH处理函数内的锁, 要执行的话可能会在执行时触发双重异常,所以在这里加锁
 //std::mutex m;
 
