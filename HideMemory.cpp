@@ -3,8 +3,8 @@
 
 std::vector<PROTECTEDMEMORY>PagesOfNoAccessOfData;
 
-//÷ªœÎ∂¡–¥µƒª∞ø…“‘¥Úø™’‚∏ˆÀ¯
-//std::mutex m;
+//Âè™ÊÉ≥ËØªÂÜôÁöÑËØùÂèØ‰ª•ÊâìÂºÄËøô‰∏™ÈîÅ
+std::mutex m;
 
 //DeFault Encrypt/Decrypt
 void EncryptData(DWORD64 lpAddress, size_t size)
@@ -25,7 +25,7 @@ LONG NTAPI VehExceptionHandler(EXCEPTION_POINTERS* ExceptionInfo)
 			if (ExceptionInfo->ExceptionRecord->ExceptionInformation[1] <= (*it).lpAddress + (*it).dwSize &&
 				ExceptionInfo->ExceptionRecord->ExceptionInformation[1] >= (*it).lpAddress)
 			{
-				//m.lock();
+				m.lock();
 				//Restore Page Protection and Decrypt
 				(*it).Protected = FALSE;//Not Protected
 				VirtualProtect((LPVOID)(*it).lpAddress, (*it).dwSize, PAGE_EXECUTE_READWRITE, &OldProtect);
@@ -52,10 +52,10 @@ LONG NTAPI VehExceptionHandler(EXCEPTION_POINTERS* ExceptionInfo)
 				if ((*it).Encrypt)
 					(*it).Encrypt((*it).lpAddress, (*it).dwSize);
 				else
-					EncryptData((*it).lpAddress, (*it).dwSize);//º”√‹
+					EncryptData((*it).lpAddress, (*it).dwSize);//Âä†ÂØÜ
 
 				VirtualProtect((LPVOID)(*it).lpAddress, (*it).dwSize, PAGE_NOACCESS, &OldProtect);
-				//m.unlock();
+				m.unlock();
 				return EXCEPTION_CONTINUE_EXECUTION;
 			}
 		}
@@ -76,7 +76,7 @@ DWORD64 AllocateHiddenMemory(LPVOID lpAddress, SIZE_T dwSize,ENCRYPTDATAPROC Enc
 	if (allocated != NULL)
 	{
 		DWORD OldProtect = 0;
-		dwSize = ((dwSize-1) & 0xfffffffffffff000) + 0x1000;//size «0 æÕ◊ﬂ≤ªµΩ’‚¿Ô
+		dwSize = ((dwSize-1) & 0xfffffffffffff000) + 0x1000;//sizeÊòØ0 Â∞±Ëµ∞‰∏çÂà∞ËøôÈáå
 
 		PROTECTEDMEMORY protected_mem = { 0 };
 		protected_mem.lpAddress = (DWORD64)allocated;
@@ -86,40 +86,19 @@ DWORD64 AllocateHiddenMemory(LPVOID lpAddress, SIZE_T dwSize,ENCRYPTDATAPROC Enc
 		protected_mem.Encrypt = Encrypt;
 		protected_mem.Decrypt = Decrypt;
 
-		PagesOfNoAccessOfData.push_back(protected_mem);
 
 		if(!Encrypt)
 			EncryptData((DWORD64)allocated, dwSize);
 		else
 			Encrypt((DWORD64)allocated, dwSize);
 
+		PagesOfNoAccessOfData.push_back(protected_mem);
+
 		VirtualProtect(allocated, dwSize, PAGE_NOACCESS, &OldProtect);
 	}
 	
 	return (DWORD64)allocated;
 }
-
-//BOOL ProtectExecutingMemory(LPVOID lpAddress, SIZE_T dwSize, ENCRYPTDATAPROC Encrypt, DECRYPTDATAPROC Decrypt)
-//{
-//	if (dwSize == 0)return FALSE;
-//
-//	dwSize = ((dwSize - 1) & 0xfffffffffffff000) + 0x1000;
-//
-//	PROTECTEDMEMORY protected_mem = { 0 }; 
-//	protected_mem.lpAddress = (DWORD64)lpAddress;
-//	protected_mem.dwSize = dwSize;
-//	protected_mem.ExecutingProtection = TRUE;
-//	protected_mem.Protected = TRUE;
-//	protected_mem.Encrypt = Encrypt;
-//	protected_mem.Decrypt = Decrypt;
-//
-//	PagesOfNoAccessOfData.push_back(protected_mem);
-//
-//	DWORD OldProtect = 0;
-//	VirtualProtect(lpAddress, dwSize, PAGE_NOACCESS, &OldProtect);
-//	return TRUE;
-//
-//}
 
 BOOL FreeHiddenMemory(DWORD64 lpAddress)
 {
